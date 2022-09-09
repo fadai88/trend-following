@@ -21,7 +21,7 @@ from pandas_datareader import data
 import matplotlib.pyplot as plt
 
 df = pd.read_excel('FX_GBPJPY.xlsx')
-df2 = df.head(200)
+df = df.head(200)
 
 
 def turtle(df, window_size, arc):
@@ -36,37 +36,48 @@ def turtle(df, window_size, arc):
     signals['short_entry'] = 0.0
     signals['short_exit'] = ''
     signals['position'] = 0
+    signals['stop_loss'] = 0.0
     for i in range(1, len(signals)):
         if df["close"][i-1] >= signals["high"][i-1] and df["ma50"][i-1] > df["ma200"][i-1] and signals['position'][i-1] == 0:
             signals['position'][i] = 1
             ind = i
             long_entry = signals["long_entry"][i] = df["open"][i]
-            stop_loss = long_entry - arc * df["ATR"][i-1]
-            print((stop_loss, i))
-            for j in range(i, len(df)):
-                if stop_loss >= df["low"][j]:
-                    signals["long_exit"] = "long_exit"
-                    signals['position'][j] = 0
-                    break
-                else:
-                    stop_loss = max(stop_loss, max(df["close"][ind:j+1]) - arc * df["ATR"][j-1])
-                    print((stop_loss, j))
-                    signals['position'][j] = 1
+            stop_loss = signals['stop_loss'][i] = long_entry - arc * df["ATR"][i-1]
+            if stop_loss >= df["low"][i]:
+                result = stop_loss - long_entry
+                signals['position'][i] = 0
+            else:                
+                for j in range(i+1, len(df)):
+                    stop_loss = max(stop_loss, max(df["close"][ind:j]) - arc * df["ATR"][j-1])
+                    if stop_loss >= df["low"][j]:
+                        signals["long_exit"] = "long_exit"
+                        signals['position'][j] = 0
+                        result = stop_loss - long_entry
+                        break
+                    else:
+                        signals['stop_loss'][j] = stop_loss
+                        signals['position'][j] = 1
                 
         elif df["close"][i-1] <= signals["low"][i-1] and df["ma50"][i-1] < df["ma200"][i-1] and signals['position'][i-1] == 0:
             signals['position'][i] = -1
             ind = i          
-            signals["short_entry"][i] = df["open"][i]
-            stop_loss = df["close"][i-1] + arc * df["ATR"][i-1]
-            for j in range(i, len(df)):
-                if stop_loss <= df["high"][j]:
-                    signals["short_exit"] = "short_exit"
-                    signals['position'][j] = 0
-                    break
-                else:
-                    stop_loss = min(stop_loss, min(df["close"][ind:j+1]) + arc * df["ATR"][j-1])
-                    signals['position'][j] = -1
+            short_entry = signals["short_entry"][i] = df["open"][i]
+            stop_loss = signals['stop_loss'][i] = df["close"][i-1] + arc * df["ATR"][i-1]
+            if stop_loss <= df['high'][i]:
+                result = short_entry - stop_loss
+                signals['position'][i] = 0
+            else:               
+                for j in range(i+1, len(df)):
+                    stop_loss = min(stop_loss, min(df["close"][ind:j]) + arc * df["ATR"][j-1])
+                    if stop_loss <= df["high"][j]:
+                        signals["short_exit"] = "short_exit"
+                        signals['position'][j] = 0
+                        result = short_entry - stop_loss
+                        break
+                    else:
+                        signals['stop_loss'][j] = stop_loss
+                        signals['position'][j] = -1
     return signals
 
-ts = turtle(df2, 50, 3)            
-#ts.to_excel("ts.xlsx")            
+ts = turtle(df, 50, 3)            
+ts.to_excel("ts2.xlsx")            
